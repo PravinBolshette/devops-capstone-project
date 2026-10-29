@@ -124,3 +124,81 @@ class TestAccountService(TestCase):
         self.assertEqual(response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
     # ADD YOUR TEST CASES HERE ...
+
+    def test_security_headers(self):
+        """It should return security headers"""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        headers = {
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'self'; object-src 'none'",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+        }
+        for key, value in headers.items():
+            self.assertEqual(response.headers.get(key), value)
+
+    def test_cors_security(self):
+        """It should return a CORS header"""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"), "*"
+        )
+
+    def test_read_account(self):
+        """It should Read a single Account"""
+        account = AccountFactory()
+        created = self.client.post(
+            BASE_URL, json=account.serialize(),
+            content_type="application/json"
+        )
+        new_id = created.get_json()["id"]
+        response = self.client.get(f"{BASE_URL}/{new_id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.get_json()["name"], account.name)
+
+    def test_read_account_not_found(self):
+        """It should not Read an Account that is not found"""
+        response = self.client.get(f"{BASE_URL}/0")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_get_account_list(self):
+        """It should Get a list of Accounts"""
+        for _ in range(3):
+            self.client.post(
+                BASE_URL, json=AccountFactory().serialize(),
+                content_type="application/json"
+            )
+        response = self.client.get(BASE_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.get_json()), 3)
+
+    def test_update_account(self):
+        """It should Update an existing Account"""
+        created = self.client.post(
+            BASE_URL, json=AccountFactory().serialize(),
+            content_type="application/json"
+        )
+        data = created.get_json()
+        data["name"] = "Something Known"
+        response = self.client.put(f"{BASE_URL}/{data['id']}", json=data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.get_json()["name"], "Something Known")
+
+    def test_delete_account(self):
+        """It should Delete an Account"""
+        created = self.client.post(
+            BASE_URL, json=AccountFactory().serialize(),
+            content_type="application/json"
+        )
+        new_id = created.get_json()["id"]
+        response = self.client.delete(f"{BASE_URL}/{new_id}")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_method_not_allowed(self):
+        """It should not allow an illegal method call"""
+        response = self.client.delete(BASE_URL)
+        self.assertEqual(
+            response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )

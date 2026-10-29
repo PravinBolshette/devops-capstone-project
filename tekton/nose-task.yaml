@@ -1,0 +1,20 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: nose
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: nosetests
+      image: python:3.9-slim
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: DATABASE_URI
+          value: "sqlite:///test.db"
+      script: |
+        #!/bin/bash
+        set -e
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        nosetests -v --with-spec --spec-color

@@ -1,15 +1,14 @@
-FROM python:3.10-slim
-
-ENV PYTHONUNBUFFERED=1
-ENV PORT=8080
+FROM python:3.9-slim
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY service/ ./service/
+
+RUN useradd --uid 1000 theia && chown -R theia /app
+USER theia
 
 EXPOSE 8080
-
-CMD ["sh", "-c", "gunicorn --workers=1 --bind 0.0.0.0:${PORT} --log-level=info service:app"]
+CMD ["gunicorn", "--bind=0.0.0.0:8080", "--log-level=info", "service:app"]

@@ -1,12 +1,6 @@
-#
-# This pipeline needs the following tasks from Tekton Catalog
-#   - git-clone
-#   - flake8
-#
----
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
-metadata:  
+metadata:
   name: cd-pipeline
 spec:
   workspaces:
@@ -15,24 +9,61 @@ spec:
     - name: repo-url
     - name: branch
       default: main
+    - name: image-name
   tasks:
     - name: init
-      workspaces:
-        - name: source
-          workspace: pipeline-workspace          
       taskRef:
         name: cleanup
-
-    - name: clone
       workspaces:
-        - name: output
-          workspace: pipeline-workspace          
+        - name: source
+          workspace: pipeline-workspace
+    - name: clone
       taskRef:
         name: git-clone
+      runAfter: [init]
       params:
-      - name: url
-        value: $(params.repo-url)
-      - name: revision
-        value: $(params.branch)
-      runAfter:
-        - init
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.branch)
+      workspaces:
+        - name: output
+          workspace: pipeline-workspace
+    - name: lint
+      taskRef:
+        name: flake8
+      runAfter: [clone]
+      params:
+        - name: image
+          value: python:3.9-slim
+        - name: args
+          value: ["service"]
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: tests
+      taskRef:
+        name: nose
+      runAfter: [lint]
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: build
+      taskRef:
+        name: buildah
+      runAfter: [tests]
+      params:
+        - name: IMAGE
+          value: $(params.image-name)
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: deploy
+      taskRef:
+        name: openshift-client
+      runAfter: [build]
+      params:
+        - name: SCRIPT
+          value: |
+            oc create deployment accounts --image=$(params.image-name) --dry-run=client -o yaml | oc apply -f -
+            oc rollout restart deployment/accounts || true
