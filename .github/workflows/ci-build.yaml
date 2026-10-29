@@ -39,7 +39,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Lint with flake8
+        run: flake8 service
+
+      - name: Run unit tests with nose
         env:
           DATABASE_URI: postgresql://postgres:postgres@localhost:5432/postgres
         run: |
